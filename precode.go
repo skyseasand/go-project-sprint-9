@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -53,8 +54,8 @@ func main() {
 
 	// генерируем числа, считая параллельно их количество и сумму
 	go Generator(ctx, chIn, func(i int64) {
-		inputSum += i
-		inputCount++
+		atomic.AddInt64(&inputSum, i)
+		atomic.AddInt64(&inputCount, 1)
 	})
 
 	const NumOut = 5 // количество обрабатывающих горутин и каналов
@@ -80,7 +81,7 @@ func main() {
 		go func(ch <-chan int64, index int) {
 			defer wg.Done()
 			for v := range ch {
-				amounts[index] += v
+				atomic.AddInt64(&amounts[index], 1)
 				chOut <- v
 			}
 		}(outs[i], i)
@@ -99,8 +100,8 @@ func main() {
 	// 5. Читаем числа из результирующего канала
 	// ...
 	for v := range chOut {
-		count++
-		sum += v
+		atomic.AddInt64(&count, 1)
+		atomic.AddInt64(&sum, v)
 	}
 
 	fmt.Println("Количество чисел", inputCount, count)
@@ -115,9 +116,9 @@ func main() {
 		log.Fatalf("Ошибка: количество чисел не равно: %d != %d\n", inputCount, count)
 	}
 	for _, v := range amounts {
-		inputSum -= v // inputSum вместо inputNum
+		inputCount -= v
 	}
-	if inputSum != 0 { // Аналогично верхнему ком-ту
+	if inputCount != 0 {
 		log.Fatalf("Ошибка: разделение чисел по каналам неверное\n")
 	}
 }
